@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   
   // Configuração para WhatsApp, Facebook, LinkedIn, etc.
   openGraph: {
-    title: "Miza DJ - Ultra Luxury Events",
+    title: "Miza DJ",
     description: "Transforme seu evento em uma experiência épica. Clique para ver a agenda e solicitar orçamento.",
-    url: "https://mizadjeventos.com.br", // IMPORTANTE: Coloque o link real do seu site aqui (se já tiver o domínio)
+    url: "https://mizadj.com.br", // IMPORTANTE: Coloque o link real do seu site aqui (se já tiver o domínio)
     siteName: "Miza DJ",
     images: [
       {
