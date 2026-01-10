@@ -85,16 +85,12 @@ export default function MizaUltraLuxury() {
   const [eventoForm, setEventoForm] = useState({ title: '', date: '', location: '' });
 
   const handleAddEvento = async () => {
-    // Validação básica
     if (!eventoForm.title || !eventoForm.date || !eventoForm.location) {
       alert("Por favor, preencha todos os campos do evento.");
       return;
     }
 
     try {
-      // Feedback visual no console
-      console.log("Enviando evento para o Firestore:", eventoForm);
-
       await addDoc(collection(db, 'agenda'), {
         title: eventoForm.title,
         date: eventoForm.date,
@@ -102,7 +98,7 @@ export default function MizaUltraLuxury() {
       });
 
       alert("Evento adicionado com sucesso!");
-      setEventoForm({ title: '', date: '', location: '' }); // Limpa o formulário
+      setEventoForm({ title: '', date: '', location: '' });
     } catch (err: any) {
       console.error('ERRO AO ADICIONAR:', err);
       if (err.code === 'permission-denied') {
@@ -115,10 +111,7 @@ export default function MizaUltraLuxury() {
 
   const removeEvento = async (id: string) => {
     if (!confirm("Deseja realmente excluir este evento permanentemente?")) return;
-    
-    // Otimisticamente remove da UI para feedback rápido
     setAgenda(prev => prev.filter(ev => ev.id !== id));
-
     try {
       await deleteDoc(doc(db, 'agenda', id));
     } catch (err) {
@@ -142,8 +135,6 @@ export default function MizaUltraLuxury() {
     const day = String(today.getDate()).padStart(2, '0');
     const todayStr = `${year}-${month}-${day}`;
 
-    // QUERY: Eventos futuros apenas
-    // IMPORTANTE: Se o console mostrar erro de "index", clique no link fornecido no console.
     const q = query(
       collection(db, 'agenda'), 
       where('date', '>=', todayStr), 
@@ -156,19 +147,16 @@ export default function MizaUltraLuxury() {
         ...(doc.data() as Omit<Evento, 'id'>)
       }));
       setAgenda(events);
-      console.log("Agenda carregada:", events.length, "eventos encontrados.");
     }, (error) => {
       console.error('ERRO DE LEITURA (SNAPSHOT):', error);
-      // Erro comum: Index faltando
       if (error.message.includes("requires an index")) {
-        console.error("VOCÊ PRECISA CRIAR UM ÍNDICE NO FIREBASE. VEJA O LINK ACIMA.");
+        console.error("VOCÊ PRECISA CRIAR UM ÍNDICE NO FIREBASE.");
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Lógica de filtragem visual (Mês)
   const filteredAgenda = agenda.filter(evento => {
     if (filterMonth === 'all') return true;
     const eventMonth = evento.date.split('-')[1];
@@ -599,21 +587,27 @@ export default function MizaUltraLuxury() {
                     src={video.src}
                     controls
                     autoPlay
-                    className="w-full h-full object-cover"
+                    playsInline // Adicionado: Melhora comportamento no iPhone
+                    className="w-full h-full object-contain bg-black" // ALTERADO: object-contain para não cortar, bg-black para barras
                   />
                 ) : (
-                  <ReactPlayer
-                    playing
-                    controls
-                    width="100%"
-                    height="100%"
-                  />
+                  <div className="w-full h-full bg-black">
+                     <ReactPlayer
+                        oEmbedUrl={video.src}
+                        playing
+                        controls
+                        width="100%"
+                        height="100%"
+                        style={{ objectFit: 'contain' }} // Garante contain no ReactPlayer
+                     />
+                  </div>
                 )
               ) : (
                 <>
                   <img
                     src={`${video.thumb}`}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    alt={`Thumbnail ${video.id}`}
                   />
                   <div className="absolute inset-0 bg-black/50 group-hover:bg-transparent transition-colors duration-500"></div>
 
