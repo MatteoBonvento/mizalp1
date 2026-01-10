@@ -6,9 +6,9 @@ import {
   ChevronRight, Menu, X, Send 
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
-// Adicionei 'where' na importação abaixo
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, doc, deleteDoc, where } from 'firebase/firestore';
 
+// --- TIPAGENS ---
 interface Evento {
   id: string;
   title: string;
@@ -16,6 +16,7 @@ interface Evento {
   location: string;
 }
 
+// --- CONFIGURAÇÃO FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyAeymmxS6TbSTZwTF8VwfPTrMWzdJLqsOY",
   authDomain: "mizaagenda.firebaseapp.com",
@@ -30,7 +31,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Lista de meses para o filtro
+// --- CONSTANTES ---
 const MONTHS_FILTER = [
   { value: 'all', label: 'Todos' },
   { value: '01', label: 'JAN' }, { value: '02', label: 'FEV' },
@@ -59,7 +60,7 @@ export default function MizaUltraLuxury() {
     { id: "yt3", thumb: "/galeria-4.jpeg", src: "/video4.mp4", type: "local" },
   ];
 
-  // Admin mode
+  // --- ADMIN MODE ---
   const [adminMode, setAdminMode] = useState(false);
   const [clickCount, setClickCount] = useState(0);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -72,7 +73,7 @@ export default function MizaUltraLuxury() {
       const password = prompt("Digite a senha do Admin:");
       if (password === "miza2025") {
         setAdminMode(true);
-        alert("Modo Admin ativado!");
+        alert("Modo Admin ativado! Role até a Agenda para adicionar eventos.");
       } else {
         alert("Senha incorreta!");
       }
@@ -80,42 +81,52 @@ export default function MizaUltraLuxury() {
     }
   };
 
-  // Admin form
+  // --- FUNÇÕES DE AGENDA ---
   const [eventoForm, setEventoForm] = useState({ title: '', date: '', location: '' });
 
   const handleAddEvento = async () => {
-    if (!eventoForm.title || !eventoForm.date || !eventoForm.location) return;
+    // Validação básica
+    if (!eventoForm.title || !eventoForm.date || !eventoForm.location) {
+      alert("Por favor, preencha todos os campos do evento.");
+      return;
+    }
 
     try {
-      const docRef = await addDoc(collection(db, 'agenda'), {
+      // Feedback visual no console
+      console.log("Enviando evento para o Firestore:", eventoForm);
+
+      await addDoc(collection(db, 'agenda'), {
         title: eventoForm.title,
         date: eventoForm.date,
         location: eventoForm.location
       });
 
-      // Atualização otimista não é necessária pois o onSnapshot cuida disso,
-      // mas podemos limpar o form.
-      setEventoForm({ title: '', date: '', location: '' });
-    } catch (err) {
-      console.error('Erro ao adicionar evento no Firebase:', err);
+      alert("Evento adicionado com sucesso!");
+      setEventoForm({ title: '', date: '', location: '' }); // Limpa o formulário
+    } catch (err: any) {
+      console.error('ERRO AO ADICIONAR:', err);
+      if (err.code === 'permission-denied') {
+        alert("ERRO: Permissão negada! Verifique as regras do Firestore no Console do Firebase.");
+      } else {
+        alert("Erro ao salvar: " + err.message);
+      }
     }
   };
 
   const removeEvento = async (id: string) => {
     if (!confirm("Deseja realmente excluir este evento permanentemente?")) return;
     
-    // O evento sumirá da lista automaticamente pelo onSnapshot, 
-    // mas filtramos localmente para feedback instantâneo se necessário
+    // Otimisticamente remove da UI para feedback rápido
     setAgenda(prev => prev.filter(ev => ev.id !== id));
 
     try {
       await deleteDoc(doc(db, 'agenda', id));
     } catch (err) {
       console.warn('Erro ao remover evento do Firebase:', err);
+      alert("Erro ao remover do banco de dados.");
     }
   };
 
-  // Helper para formatar data BR
   const formatDateBr = (dateString: string) => {
     if (!dateString) return '';
     const parts = dateString.split('-');
@@ -123,19 +134,19 @@ export default function MizaUltraLuxury() {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
-  // --- FETCH AGENDA COM FILTRO DE DATA ---
+  // --- FETCH AGENDA (Load Data) ---
   useEffect(() => {
-    // 1. Pega a data de hoje no formato YYYY-MM-DD
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const todayStr = `${year}-${month}-${day}`;
 
-    // 2. Query: Traz apenas onde 'date' >= hoje
+    // QUERY: Eventos futuros apenas
+    // IMPORTANTE: Se o console mostrar erro de "index", clique no link fornecido no console.
     const q = query(
       collection(db, 'agenda'), 
-      where('date', '>=', todayStr), // A MÁGICA ACONTECE AQUI
+      where('date', '>=', todayStr), 
       orderBy('date', 'asc')
     );
 
@@ -145,8 +156,13 @@ export default function MizaUltraLuxury() {
         ...(doc.data() as Omit<Evento, 'id'>)
       }));
       setAgenda(events);
+      console.log("Agenda carregada:", events.length, "eventos encontrados.");
     }, (error) => {
-      console.error('Erro ao buscar agenda em tempo real:', error);
+      console.error('ERRO DE LEITURA (SNAPSHOT):', error);
+      // Erro comum: Index faltando
+      if (error.message.includes("requires an index")) {
+        console.error("VOCÊ PRECISA CRIAR UM ÍNDICE NO FIREBASE. VEJA O LINK ACIMA.");
+      }
     });
 
     return () => unsubscribe();
@@ -159,14 +175,14 @@ export default function MizaUltraLuxury() {
     return eventMonth === filterMonth;
   });
 
-  // Navbar scroll
+  // --- SCROLL NAVBAR ---
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Formulário WhatsApp
+  // --- WHATSAPP FORM ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -430,24 +446,24 @@ export default function MizaUltraLuxury() {
                   placeholder="Título do evento"
                   value={eventoForm.title}
                   onChange={e => setEventoForm({ ...eventoForm, title: e.target.value })}
-                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white"
+                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white w-full md:w-auto"
                 />
                 <input
                   type="date"
                   value={eventoForm.date}
                   onChange={e => setEventoForm({ ...eventoForm, date: e.target.value })}
-                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white"
+                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white w-full md:w-auto"
                 />
                 <input
                   type="text"
                   placeholder="Local"
                   value={eventoForm.location}
                   onChange={e => setEventoForm({ ...eventoForm, location: e.target.value })}
-                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white"
+                  className="p-2 rounded bg-zinc-900 border border-zinc-700 text-white w-full md:w-auto"
                 />
                 <button
                   onClick={handleAddEvento}
-                  className="px-4 py-2 bg-amber-500 text-black font-bold rounded hover:bg-amber-400 transition-colors"
+                  className="px-6 py-2 bg-amber-500 text-black font-bold rounded hover:bg-amber-400 transition-colors w-full md:w-auto"
                 >
                   Adicionar
                 </button>
@@ -458,7 +474,8 @@ export default function MizaUltraLuxury() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {filteredAgenda.length === 0 ? (
               <div className="col-span-full py-12 text-center border border-dashed border-zinc-800 rounded-lg">
-                 <p className="text-zinc-500 font-display text-lg">Nenhum evento futuro encontrado para este período.</p>
+                  <p className="text-zinc-500 font-display text-lg">Nenhum evento futuro encontrado para este período.</p>
+                  {adminMode && <p className="text-amber-500 text-xs mt-2">Dica: Se você acabou de adicionar, verifique se a data não é passada.</p>}
               </div>
             ) : (
               filteredAgenda.map((evento) => (
@@ -600,29 +617,9 @@ export default function MizaUltraLuxury() {
                   />
                   <div className="absolute inset-0 bg-black/50 group-hover:bg-transparent transition-colors duration-500"></div>
 
-                  {index === 0 && (
-                    <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white z-10">
-                      CLIQUE PARA ASSISTIR
-                    </span>
-                  )}
-
-                  {index === 1 && (
-                    <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white z-10">
-                      CLIQUE PARA ASSISTIR
-                    </span>
-                  )}
-
-                  {index === 2 && (
-                    <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white z-10">
-                      CLIQUE PARA ASSISTIR
-                    </span>
-                  )}
-
-                  {index === 3 && (
-                    <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white z-10">
-                      CLIQUE PARA ASSISTIR
-                    </span>
-                  )}
+                  <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white z-10 pointer-events-none">
+                    CLIQUE PARA ASSISTIR
+                  </span>
                 </>
               )}
             </div>
@@ -784,7 +781,7 @@ export default function MizaUltraLuxury() {
         {/* --- RODAPÉ / CREDITS --- */}
         <div className="border-t border-zinc-900 bg-[#020202] py-8">
           <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-zinc-600 text-center md:text-left">
-            <p onClick={handleFooterClick}>© 2025 MIZA DJ. Todos os direitos reservados.</p>
+            <p onClick={handleFooterClick} className="cursor-pointer hover:text-amber-500 select-none">© 2025 MIZA DJ. Todos os direitos reservados.</p>
 
             
             <div className="flex items-center justify-center md:justify-end gap-2 group cursor-pointer hover:text-zinc-400 transition-colors">
